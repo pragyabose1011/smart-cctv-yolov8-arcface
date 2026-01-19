@@ -7,6 +7,4 @@ numpy
 deepface
 tf-keras
 gunicorn
-insightface
-onnxruntime
 
