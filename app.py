@@ -6,7 +6,7 @@ import torch
 import sqlite3
 from datetime import datetime
 from ultralytics import YOLO
-from deepface import DeepFace
+import insightface
 
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
@@ -44,20 +44,22 @@ init_db()
 # --------------------- YOLO + ArcFace Setup ---------------------
 yolo_model = YOLO("yolov8n.pt")  # change to your custom weights if available
 
+# Initialize ArcFace with insightface
+face_app = insightface.app.FaceAnalysis(name='arcface')
+face_app.prepare(ctx_id=-1, det_size=(640, 640))  # Use CPU
+
 # Simple known faces enrollment
 known_faces = {}
 
 def register_face(name, img_path):
-    try:
-        rep = DeepFace.represent(img_path=img_path, model_name='ArcFace', detector_backend='mtcnn', enforce_detection=True)
-        if rep and isinstance(rep, list) and 'embedding' in rep[0]:
-            embedding = np.array(rep[0]['embedding'], dtype=np.float32)
-            known_faces[name] = embedding
-            print(f"Enrolled: {name}")
-        else:
-            print(f"No face detected in: {img_path}")
-    except Exception as e:
-        print(f"Failed to enroll {name}: {e}")
+    img = cv2.imread(img_path)
+    faces = face_app.get(img)
+    if faces:
+        embedding = faces[0].embedding
+        known_faces[name] = embedding
+        print(f"Enrolled: {name}")
+    else:
+        print(f"No face detected in: {img_path}")
 
 if os.path.exists("enroll"):
     for subdir in os.listdir("enroll"):
@@ -87,21 +89,18 @@ def upload_video():
 
 # --------------------- Face Recognition with Cosine Similarity ---------------------
 def recognize_face(face_crop):
-    try:
-        rep = DeepFace.represent(img_path=face_crop, model_name='ArcFace', detector_backend='mtcnn', enforce_detection=False)
-        if not rep or not isinstance(rep, list) or 'embedding' not in rep[0]:
-            return "Unknown"
-        embedding = np.array(rep[0]['embedding'], dtype=np.float32)
-        max_sim, identity = -1.0, "Unknown"
-        for name, known_emb in known_faces.items():
-            cos_sim = np.dot(embedding, known_emb) / (
-                np.linalg.norm(embedding) * np.linalg.norm(known_emb)
-            )
-            if cos_sim > max_sim and cos_sim > 0.5:  # similarity threshold
-                max_sim, identity = cos_sim, name
-        return identity
-    except Exception:
+    faces = face_app.get(face_crop)
+    if not faces:
         return "Unknown"
+    embedding = faces[0].embedding
+    min_dist = float('inf')
+    identity = "Unknown"
+    for name, known_emb in known_faces.items():
+        dist = np.linalg.norm(embedding - known_emb)
+        if dist < min_dist and dist < 1.0:  # similarity threshold
+            min_dist = dist
+            identity = name
+    return identity
 
 # --------------------- Frame Generator ---------------------
 def generate_frames(path):
