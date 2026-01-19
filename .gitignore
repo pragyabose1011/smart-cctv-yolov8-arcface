@@ -1,0 +1,14 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Bytecode
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+
+# Logs
+*.log

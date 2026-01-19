@@ -1,0 +1,10 @@
+﻿flask
+torch
+torchvision
+ultralytics
+opencv-python
+numpy
+deepface
+tf-keras
+gunicorn
+

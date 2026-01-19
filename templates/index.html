@@ -1,0 +1,13 @@
+﻿<!DOCTYPE html>
+<html>
+<head><title>Smart CCTV (YOLOv8 + ArcFace + SQLite)</title></head>
+<body>
+  <h2>Upload Video for Detection & Recognition</h2>
+  <form action="/upload" method="POST" enctype="multipart/form-data">
+    <input type="file" name="video" accept="video/*" required>
+    <button type="submit">Upload</button>
+  </form>
+  <p><a href="/logs">View Recognition Logs</a></p>
+</body>
+</html>
+
