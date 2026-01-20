@@ -1,3 +1,4 @@
+from xml.parsers.expat import model
 from flask import Flask, render_template, request, redirect, url_for, Response
 import cv2
 import os
@@ -42,7 +43,15 @@ def log_recognition(name, video_file):
 init_db()
 
 # --------------------- YOLO + ArcFace Setup ---------------------
-yolo_model = YOLO("yolov8n.pt")  # change to your custom weights if available
+# --------------------- YOLO Lazy Setup ---------------------
+yolo_model = None
+
+def get_yolo():
+    global yolo_model
+    if yolo_model is None:
+        yolo_model = YOLO("yolov8n.pt")
+    return yolo_model
+  # change to your custom weights if available
 
 # Simple known faces enrollment
 known_faces = {}
@@ -111,7 +120,9 @@ def generate_frames(path):
         success, frame = cap.read()
         if not success:
             break
-        results = yolo_model(frame, verbose=False)
+        model = get_yolo()
+        results = model(frame, verbose=False)
+
         boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
         for (x1, y1, x2, y2) in boxes:
             crop = frame[y1:y2, x1:x2]
