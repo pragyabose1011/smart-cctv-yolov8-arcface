@@ -146,6 +146,15 @@ def show_logs():
     html += "</ul>"
     return html
 
+@app.route("/health")
+def health():
+    return {
+        "status": "ok",
+        "service": "smart-cctv-yolov8-arcface",
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }, 200
+
+
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5001))
+    port = int(os.environ.get('PORT', 5000))
     app.run(host="0.0.0.0", port=port)
