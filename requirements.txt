@@ -1,11 +1,11 @@
-﻿flask
-torch
-torchvision
+﻿# Use CPU-only PyTorch wheels to avoid downloading CUDA/NVIDIA packages during build
+--find-links https://download.pytorch.org/whl/cpu/torch_stable.html
+flask
+torch==2.10.0+cpu
+torchvision==0.25.0+cpu
 ultralytics
 opencv-python
 numpy
 gunicorn
 pillow
 facenet-pytorch
-gunicorn
-pillow
