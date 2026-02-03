@@ -17,8 +17,7 @@ RUN python -m pip install --no-cache-dir -r requirements.txt
 EXPOSE 5000
 
 # Memory and performance optimizations
-ENV PORT=5000 \
-    PYTHONUNBUFFERED=1 \
+ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     TF_CPP_MIN_LOG_LEVEL=3 \
     OMP_NUM_THREADS=1
