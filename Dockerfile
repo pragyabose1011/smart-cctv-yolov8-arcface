@@ -24,4 +24,5 @@ ENV PORT=5000 \
     OMP_NUM_THREADS=1
 
 # Use single worker and reduce timeouts for memory efficiency
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:5000", "--workers", "1", "--worker-class", "sync", "--timeout", "120", "--max-requests", "100", "--max-requests-jitter", "10"]
+# Bind to the port provided by the environment (Render sets $PORT)
+CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --worker-class sync --timeout 120 --max-requests 100 --max-requests-jitter 10"]
