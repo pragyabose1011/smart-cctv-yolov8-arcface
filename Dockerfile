@@ -11,6 +11,6 @@ COPY . .
 # Install Python requirements safely (bypass Debian restriction)
 RUN python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
 
-EXPOSE 10000
-CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120"]
+EXPOSE 5000
+CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:${PORT:-5000} --timeout 120 --workers 1"]
 
