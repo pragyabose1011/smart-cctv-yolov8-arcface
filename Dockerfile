@@ -1,15 +1,15 @@
-﻿FROM debian:bookworm
+﻿FROM python:3.11-slim
 
-# Install Python, pip, and OpenCV dependencies
-RUN apt-get update && apt-get install -y \
-    python3 python3-pip python3-opencv libgl1 libglib2.0-0 ffmpeg \
+# Install minimal system dependencies (keep image small)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg libgl1 libglib2.0-0 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY . .
 
-# Install Python requirements safely (bypass Debian restriction)
-RUN python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
+# Install Python requirements
+RUN python -m pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 5000
 CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:${PORT:-5000} --timeout 120 --workers 1"]

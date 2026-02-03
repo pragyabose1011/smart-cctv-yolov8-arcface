@@ -12,3 +12,5 @@ __pycache__/
 
 # Logs
 *.log
+# Model weights (download at runtime)
+yolov8n.pt
