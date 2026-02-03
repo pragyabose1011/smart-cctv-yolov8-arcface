@@ -5,6 +5,5 @@ ultralytics
 opencv-python
 numpy
 deepface
-tf-keras
 gunicorn
-
+pillow

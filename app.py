@@ -5,6 +5,7 @@ import os
 import numpy as np
 import torch
 import sqlite3
+import gc
 from datetime import datetime
 from ultralytics import YOLO
 from deepface import DeepFace
@@ -12,6 +13,10 @@ from deepface import DeepFace
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Reduce memory footprint
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TF warnings
+os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Use CPU only to save memory
 
 # --------------------- Database Setup ---------------------
 DB_PATH = "logs.db"
@@ -58,7 +63,10 @@ known_faces = {}
 
 def register_face(name, img_path):
     try:
-        rep = DeepFace.represent(img_path=img_path, model_name='ArcFace', detector_backend='mtcnn', enforce_detection=True)
+        # Use torch backend (lighter than TensorFlow)
+        rep = DeepFace.represent(img_path=img_path, model_name='ArcFace', 
+                                detector_backend='mtcnn', enforce_detection=True,
+                                model_dir='./models_cache')
         if rep and isinstance(rep, list) and 'embedding' in rep[0]:
             embedding = np.array(rep[0]['embedding'], dtype=np.float32)
             known_faces[name] = embedding
@@ -67,6 +75,9 @@ def register_face(name, img_path):
             print(f"No face detected in: {img_path}")
     except Exception as e:
         print(f"Failed to enroll {name}: {e}")
+    finally:
+        # Clean up memory after processing
+        gc.collect()
 
 if os.path.exists("enroll"):
     for subdir in os.listdir("enroll"):
@@ -97,7 +108,9 @@ def upload_video():
 # --------------------- Face Recognition with Cosine Similarity ---------------------
 def recognize_face(face_crop):
     try:
-        rep = DeepFace.represent(img_path=face_crop, model_name='ArcFace', detector_backend='mtcnn', enforce_detection=False)
+        rep = DeepFace.represent(img_path=face_crop, model_name='ArcFace', 
+                                detector_backend='mtcnn', enforce_detection=False,
+                                model_dir='./models_cache')
         if not rep or not isinstance(rep, list) or 'embedding' not in rep[0]:
             return "Unknown"
         embedding = np.array(rep[0]['embedding'], dtype=np.float32)
@@ -116,26 +129,44 @@ def recognize_face(face_crop):
 def generate_frames(path):
     cap = cv2.VideoCapture(path)
     video_file = os.path.basename(path)
-    while True:
-        success, frame = cap.read()
-        if not success:
-            break
-        model = get_yolo()
-        results = model(frame, verbose=False)
+    frame_count = 0
+    try:
+        while True:
+            success, frame = cap.read()
+            if not success:
+                break
+            
+            # Process every Nth frame to reduce computation
+            frame_count += 1
+            if frame_count % 2 != 0:  # Skip every other frame
+                _, buffer = cv2.imencode('.jpg', frame)
+                yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' +
+                       buffer.tobytes() + b'\r\n')
+                continue
+                
+            model = get_yolo()
+            results = model(frame, verbose=False)
 
-        boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
-        for (x1, y1, x2, y2) in boxes:
-            crop = frame[y1:y2, x1:x2]
-            name = recognize_face(crop)
-            if name != "Unknown":
-                log_recognition(name, video_file)
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
-            cv2.putText(frame, name, (x1, y1-10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
-        _, buffer = cv2.imencode('.jpg', frame)
-        yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' +
-               buffer.tobytes() + b'\r\n')
-    cap.release()
+            boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
+            for (x1, y1, x2, y2) in boxes:
+                crop = frame[y1:y2, x1:x2]
+                name = recognize_face(crop)
+                if name != "Unknown":
+                    log_recognition(name, video_file)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
+                cv2.putText(frame, name, (x1, y1-10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+            
+            _, buffer = cv2.imencode('.jpg', frame)
+            yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' +
+                   buffer.tobytes() + b'\r\n')
+            
+            # Periodic garbage collection
+            if frame_count % 30 == 0:
+                gc.collect()
+    finally:
+        cap.release()
+        gc.collect()
 
 # --------------------- Routes for Video and Logs ---------------------
 @app.route('/video/<filename>')
