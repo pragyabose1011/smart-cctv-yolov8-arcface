@@ -4,6 +4,8 @@ torchvision
 ultralytics
 opencv-python
 numpy
-deepface
+gunicorn
+pillow
+facenet-pytorch
 gunicorn
 pillow

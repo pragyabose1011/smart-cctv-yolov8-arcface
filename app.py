@@ -8,7 +8,8 @@ import sqlite3
 import gc
 from datetime import datetime
 from ultralytics import YOLO
-from deepface import DeepFace
+from facenet_pytorch import MTCNN, InceptionResnetV1
+from PIL import Image
 
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
@@ -61,22 +62,32 @@ def get_yolo():
 # Simple known faces enrollment
 known_faces = {}
 
+# FaceNet models (lazy-loaded)
+mtcnn = None
+resnet = None
+
+def get_face_models(device='cpu'):
+    global mtcnn, resnet
+    if mtcnn is None or resnet is None:
+        mtcnn = MTCNN(image_size=160, margin=0, keep_all=False, device=device)
+        resnet = InceptionResnetV1(pretrained='vggface2').eval()
+    return mtcnn, resnet
+
 def register_face(name, img_path):
     try:
-        # Use torch backend (lighter than TensorFlow)
-        rep = DeepFace.represent(img_path=img_path, model_name='ArcFace', 
-                                detector_backend='mtcnn', enforce_detection=True,
-                                model_dir='./models_cache')
-        if rep and isinstance(rep, list) and 'embedding' in rep[0]:
-            embedding = np.array(rep[0]['embedding'], dtype=np.float32)
-            known_faces[name] = embedding
-            print(f"Enrolled: {name}")
-        else:
+        mtcnn, resnet = get_face_models()
+        img = Image.open(img_path).convert('RGB')
+        face_tensor = mtcnn(img)
+        if face_tensor is None:
             print(f"No face detected in: {img_path}")
+            return
+        with torch.no_grad():
+            embedding = resnet(face_tensor.unsqueeze(0)).cpu().numpy()[0]
+        known_faces[name] = np.array(embedding, dtype=np.float32)
+        print(f"Enrolled: {name}")
     except Exception as e:
         print(f"Failed to enroll {name}: {e}")
     finally:
-        # Clean up memory after processing
         gc.collect()
 
 if os.path.exists("enroll"):
@@ -108,18 +119,26 @@ def upload_video():
 # --------------------- Face Recognition with Cosine Similarity ---------------------
 def recognize_face(face_crop):
     try:
-        rep = DeepFace.represent(img_path=face_crop, model_name='ArcFace', 
-                                detector_backend='mtcnn', enforce_detection=False,
-                                model_dir='./models_cache')
-        if not rep or not isinstance(rep, list) or 'embedding' not in rep[0]:
+        # face_crop is an OpenCV BGR numpy array; convert to PIL RGB
+        if isinstance(face_crop, np.ndarray):
+            img = Image.fromarray(cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB))
+        else:
+            img = Image.open(face_crop).convert('RGB')
+
+        mtcnn, resnet = get_face_models()
+        face_tensor = mtcnn(img)
+        if face_tensor is None:
             return "Unknown"
-        embedding = np.array(rep[0]['embedding'], dtype=np.float32)
+        with torch.no_grad():
+            embedding = resnet(face_tensor.unsqueeze(0)).cpu().numpy()[0]
+
+        embedding = np.array(embedding, dtype=np.float32)
         max_sim, identity = -1.0, "Unknown"
         for name, known_emb in known_faces.items():
             cos_sim = np.dot(embedding, known_emb) / (
-                np.linalg.norm(embedding) * np.linalg.norm(known_emb)
+                np.linalg.norm(embedding) * np.linalg.norm(known_emb) + 1e-10
             )
-            if cos_sim > max_sim and cos_sim > 0.5:  # similarity threshold
+            if cos_sim > max_sim and cos_sim > 0.5:
                 max_sim, identity = cos_sim, name
         return identity
     except Exception:
