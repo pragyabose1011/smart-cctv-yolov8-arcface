@@ -1,5 +1,6 @@
 ﻿# Use CPU-only PyTorch wheels to avoid downloading CUDA/NVIDIA packages during build
---index-url https://download.pytorch.org/whl/cpu
+# Use PyPI as the primary index and add PyTorch CPU wheels as an extra index
+--extra-index-url https://download.pytorch.org/whl/cpu
 flask
 torch==2.10.0
 torchvision==0.25.0
