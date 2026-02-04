@@ -1,8 +1,8 @@
 ﻿# Use CPU-only PyTorch wheels to avoid downloading CUDA/NVIDIA packages during build
---find-links https://download.pytorch.org/whl/cpu/torch_stable.html
+--index-url https://download.pytorch.org/whl/cpu
 flask
-torch==2.10.0+cpu
-torchvision==0.25.0+cpu
+torch==2.10.0
+torchvision==0.25.0
 ultralytics
 opencv-python
 numpy
