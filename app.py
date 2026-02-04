@@ -50,14 +50,25 @@ init_db()
 
 # --------------------- YOLO + ArcFace Setup ---------------------
 # --------------------- YOLO Lazy Setup ---------------------
+# Lazy-load YOLO to avoid downloading weights at startup (saves memory for 512MB Render)
 yolo_model = None
+yolo_download_in_progress = False
 
 def get_yolo():
-    global yolo_model
+    global yolo_model, yolo_download_in_progress
     if yolo_model is None:
-        yolo_model = YOLO("yolov8n.pt")
+        # Avoid race conditions if multiple requests come at once
+        if not yolo_download_in_progress:
+            yolo_download_in_progress = True
+            try:
+                print("[YOLO] Downloading yolov8n.pt weights on first use...")
+                yolo_model = YOLO("yolov8n.pt")
+                print("[YOLO] Weights loaded successfully.")
+            except Exception as e:
+                print(f"[YOLO] Failed to load weights: {e}")
+                yolo_download_in_progress = False
+                raise
     return yolo_model
-  # change to your custom weights if available
 
 # Simple known faces enrollment
 known_faces = {}
